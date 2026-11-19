@@ -1,0 +1,889 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Sophia - Assistente Virtual</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+    background: #101827;
+    color: white;
+}
+
+.container {
+    max-width: 650px;
+    margin: auto;
+    background: #1e293b;
+    padding: 22px;
+    border-radius: 16px;
+}
+
+h1 {
+    text-align: center;
+    color: #93c5fd;
+}
+
+.logo {
+    width: 110px;
+    height: 110px;
+    margin: 20px auto;
+    border-radius: 50%;
+    background: #334155;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 55px;
+    border: 4px solid #64748b;
+}
+
+.logo.ativa {
+    border-color: #22c55e;
+    box-shadow: 0 0 25px #22c55e88;
+}
+
+.logo.falando {
+    border-color: #60a5fa;
+    box-shadow: 0 0 25px #60a5fa88;
+}
+
+#status {
+    text-align: center;
+    font-size: 18px;
+    font-weight: bold;
+    margin: 15px 0;
+    color: #93c5fd;
+}
+
+#detalhe {
+    text-align: center;
+    color: #cbd5e1;
+    font-size: 14px;
+    min-height: 20px;
+}
+
+.botoes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 22px;
+}
+
+button {
+    padding: 14px;
+    border: none;
+    border-radius: 9px;
+    font-size: 16px;
+    cursor: pointer;
+    color: white;
+}
+
+.iniciar { background: #16a34a; }
+.suspender { background: #d97706; }
+.encerrar { background: #dc2626; }
+.testar { background: #2563eb; }
+
+textarea {
+    width: 100%;
+    height: 130px;
+    margin-top: 20px;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 16px;
+    resize: vertical;
+}
+
+.config {
+    margin-top: 18px;
+}
+
+select, input[type=range] {
+    width: 100%;
+    padding: 10px;
+    border-radius: 7px;
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    color: #cbd5e1;
+}
+
+.comando {
+    margin-top: 22px;
+    padding: 15px;
+    background: #334155;
+    border-radius: 9px;
+    font-size: 14px;
+    line-height: 1.8;
+}
+
+@media(max-width:400px) {
+    .botoes {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>✨ Sophia</h1>
+
+    <div id="logo" class="logo">
+        🎙️
+    </div>
+
+    <div id="status">
+        Sophia desligada
+    </div>
+
+    <div id="detalhe">
+        Clique em iniciar para ativar a assistente.
+    </div>
+
+    <div class="botoes">
+
+        <button class="iniciar" onclick="iniciarSophia()">
+            🎤 Iniciar Sophia
+        </button>
+
+        <button class="suspender" onclick="suspenderSophia()">
+            ⏸ Suspender
+        </button>
+
+        <button class="encerrar" onclick="encerrarSophia()">
+            ⏹ Encerrar
+        </button>
+
+        <button class="testar" onclick="testarVoz()">
+            🔊 Testar voz
+        </button>
+
+    </div>
+
+    <textarea id="texto"
+        placeholder="O texto que a Sophia poderá ler aparecerá aqui..."></textarea>
+
+    <div class="config">
+
+        <label>Voz da Sophia:</label>
+
+        <select id="seletorVoz"></select>
+
+    </div>
+
+    <div class="config">
+
+        <label>
+            Velocidade da fala:
+            <span id="valorVelocidade">1.0</span>
+        </label>
+
+        <input type="range"
+            id="velocidade"
+            min="0.5"
+            max="2"
+            step="0.1"
+            value="1"
+            oninput="atualizarVelocidade()">
+
+    </div>
+
+    <div class="comando">
+
+        <strong>Comandos disponíveis:</strong><br>
+
+        • Oi Sophia<br>
+        • Que horas são?<br>
+        • Que dia é hoje?<br>
+        • Leia o texto<br>
+        • Limpar texto<br>
+        • Pare a leitura<br>
+        • Ajuda<br>
+        • Dormir Sophia
+
+    </div>
+
+</div>
+
+
+<script>
+
+// ==========================================
+// CONFIGURAÇÕES
+// ==========================================
+
+const campoTexto = document.getElementById("texto");
+const status = document.getElementById("status");
+const detalhe = document.getElementById("detalhe");
+const logo = document.getElementById("logo");
+const seletorVoz = document.getElementById("seletorVoz");
+
+const velocidade = document.getElementById("velocidade");
+
+let reconhecimento = null;
+
+let sophiaAtiva = false;
+let reconhecimentoAtivo = false;
+let falando = false;
+let aguardandoComando = false;
+
+let temporizadorComando = null;
+let temporizadorReinicio = null;
+
+let falaAtual = null;
+
+
+// ==========================================
+// VOZES DISPONÍVEIS
+// ==========================================
+
+function carregarVozes() {
+
+    const vozes = speechSynthesis.getVoices();
+
+    seletorVoz.innerHTML = "";
+
+    const brasileiras = vozes.filter(v =>
+        v.lang.toLowerCase() === "pt-br"
+    );
+
+    const lista = brasileiras.length > 0
+        ? brasileiras
+        : vozes.filter(v =>
+            v.lang.toLowerCase().startsWith("pt")
+        );
+
+    lista.forEach(voz => {
+
+        let option = document.createElement("option");
+
+        option.value = vozes.indexOf(voz);
+
+        option.textContent =
+            voz.name + " (" + voz.lang + ")";
+
+        seletorVoz.appendChild(option);
+
+    });
+
+    // Preferência por nomes de vozes femininas conhecidas
+    let feminina = lista.find(v =>
+        /female|feminina|francisca|maria/i.test(v.name)
+    );
+
+    if (!feminina && lista.length > 0) {
+        feminina = lista[0];
+    }
+
+    if (feminina) {
+        seletorVoz.value = vozes.indexOf(feminina);
+    }
+
+}
+
+speechSynthesis.onvoiceschanged = carregarVozes;
+
+carregarVozes();
+
+
+// ==========================================
+// ATUALIZAR INTERFACE
+// ==========================================
+
+function atualizarStatus(mensagem, complemento = "") {
+
+    status.innerText = mensagem;
+    detalhe.innerText = complemento;
+
+}
+
+
+// ==========================================
+// NORMALIZAR TEXTO
+// ==========================================
+
+function normalizar(texto) {
+
+    return texto
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[.,!?;:]/g, "")
+        .trim();
+
+}
+
+
+// ==========================================
+// FALAR COM VOZ FEMININA
+// ==========================================
+
+function falar(texto) {
+
+    if (!texto) return;
+
+    // Evita que a Sophia escute a própria voz
+    falando = true;
+
+    clearTimeout(temporizadorReinicio);
+
+    if (reconhecimento && reconhecimentoAtivo) {
+        reconhecimento.stop();
+    }
+
+    speechSynthesis.cancel();
+
+    const fala = new SpeechSynthesisUtterance(texto);
+
+    fala.lang = "pt-BR";
+    fala.rate = parseFloat(velocidade.value);
+    fala.pitch = 1;
+    fala.volume = 1;
+
+    const vozes = speechSynthesis.getVoices();
+
+    const indice = parseInt(seletorVoz.value, 10);
+
+    if (!isNaN(indice) && vozes[indice]) {
+        fala.voice = vozes[indice];
+        fala.lang = vozes[indice].lang;
+    }
+
+    falaAtual = fala;
+
+    logo.classList.remove("ativa");
+    logo.classList.add("falando");
+
+    atualizarStatus("🔊 Sophia falando...", texto);
+
+    fala.onend = function() {
+
+        if (falaAtual !== fala) return;
+
+        falando = false;
+
+        logo.classList.remove("falando");
+
+        if (sophiaAtiva) {
+
+            atualizarStatus(
+                "🟢 Sophia aguardando",
+                'Diga "Oi Sophia" para ativar.'
+            );
+
+            iniciarReconhecimento();
+
+        }
+
+    };
+
+    fala.onerror = function() {
+
+        if (falaAtual !== fala) return;
+
+        falando = false;
+
+        logo.classList.remove("falando");
+
+        if (sophiaAtiva) {
+            iniciarReconhecimento();
+        }
+
+    };
+
+    speechSynthesis.speak(fala);
+
+}
+
+
+// ==========================================
+// TESTAR VOZ
+// ==========================================
+
+function testarVoz() {
+
+    falar("Olá! Eu sou a Sophia. Estou pronta para ajudar você.");
+
+}
+
+
+// ==========================================
+// INICIAR ASSISTENTE
+// ==========================================
+
+function iniciarSophia() {
+
+    if (!("webkitSpeechRecognition" in window) &&
+        !("SpeechRecognition" in window)) {
+
+        alert("Seu navegador não suporta reconhecimento de voz.");
+
+        return;
+    }
+
+    if (sophiaAtiva) return;
+
+    const API =
+        window.SpeechRecognition ||
+        window.webkitSpeechRecognition;
+
+    reconhecimento = new API();
+
+    reconhecimento.lang = "pt-BR";
+
+    // O Chrome Android pode ignorar continuous.
+    // As sessões serão reiniciadas automaticamente.
+    reconhecimento.continuous = true;
+    reconhecimento.interimResults = true;
+
+    reconhecimento.onstart = function() {
+
+        reconhecimentoAtivo = true;
+
+        if (!falando) {
+
+            logo.classList.add("ativa");
+
+            if (!aguardandoComando) {
+
+                atualizarStatus(
+                    "🟢 Sophia aguardando",
+                    'Diga "Oi Sophia" para ativar.'
+                );
+
+            } else {
+
+                atualizarStatus(
+                    "🎧 Estou ouvindo você",
+                    "Pode falar seu comando."
+                );
+
+            }
+
+        }
+
+    };
+
+    reconhecimento.onresult = function(event) {
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+
+            if (event.results[i].isFinal) {
+
+                const frase =
+                    event.results[i][0].transcript.trim();
+
+                console.log("Reconhecido:", frase);
+
+                processarFala(frase);
+
+            }
+
+        }
+
+    };
+
+    reconhecimento.onerror = function(event) {
+
+        console.log("Erro de reconhecimento:", event.error);
+
+        reconhecimentoAtivo = false;
+
+        if (
+            event.error === "not-allowed" ||
+            event.error === "service-not-allowed"
+        ) {
+
+            sophiaAtiva = false;
+
+            atualizarStatus(
+                "Microfone não autorizado",
+                "Verifique a permissão do microfone."
+            );
+
+            return;
+        }
+
+        if (event.error === "audio-capture") {
+
+            sophiaAtiva = false;
+
+            atualizarStatus(
+                "Microfone indisponível",
+                "Verifique se existe um microfone conectado."
+            );
+
+            return;
+        }
+
+        // no-speech, network e outros erros transitórios
+        // serão tratados pelo evento onend.
+
+    };
+
+    reconhecimento.onend = function() {
+
+        reconhecimentoAtivo = false;
+
+        if (sophiaAtiva && !falando) {
+
+            clearTimeout(temporizadorReinicio);
+
+            temporizadorReinicio = setTimeout(function() {
+
+                iniciarReconhecimento();
+
+            }, 700);
+
+        }
+
+    };
+
+    sophiaAtiva = true;
+
+    aguardandoComando = false;
+
+    falar("Olá! Sophia ativada. Estou aguardando você.");
+
+}
+
+
+// ==========================================
+// INICIAR RECONHECIMENTO
+// ==========================================
+
+function iniciarReconhecimento() {
+
+    if (!sophiaAtiva) return;
+
+    if (falando) return;
+
+    if (reconhecimentoAtivo) return;
+
+    if (!reconhecimento) return;
+
+    try {
+
+        reconhecimento.start();
+
+    } catch (e) {
+
+        console.log("Reconhecimento:", e.message);
+
+    }
+
+}
+
+
+// ==========================================
+// PROCESSAR O QUE FOI FALADO
+// ==========================================
+
+function processarFala(frase) {
+
+    if (!sophiaAtiva || falando) return;
+
+    const texto = normalizar(frase);
+
+    // Verifica a palavra de ativação
+    const posicao = texto.indexOf("oi sophia");
+
+    const posicaoOla = texto.indexOf("ola sophia");
+
+    const posicaoWake = Math.max(posicao, posicaoOla);
+
+    if (posicaoWake >= 0) {
+
+        // Extrai o comando que veio depois da palavra-chave
+        const comando = texto
+            .substring(posicaoWake + (
+                texto.startsWith("oi sophia", posicaoWake)
+                    ? 9
+                    : 10
+            ))
+            .trim();
+
+        if (comando.length > 0) {
+
+            aguardandoComando = true;
+
+            executarComando(comando);
+
+        } else {
+
+            ativarComando();
+
+        }
+
+        return;
+    }
+
+    // Só aceita comandos depois da palavra-chave
+    if (aguardandoComando) {
+
+        clearTimeout(temporizadorComando);
+
+        executarComando(texto);
+
+    }
+
+}
+
+
+// ==========================================
+// ATIVAR MODO DE COMANDO
+// ==========================================
+
+function ativarComando() {
+
+    aguardandoComando = true;
+
+    falar("Olá! Estou ouvindo. Qual é o seu comando?");
+
+    clearTimeout(temporizadorComando);
+
+    temporizadorComando = setTimeout(function() {
+
+        if (aguardandoComando && sophiaAtiva) {
+
+            aguardandoComando = false;
+
+            falar("Não recebi nenhum comando. Voltando a aguardar.");
+
+        }
+
+    }, 12000);
+
+}
+
+
+// ==========================================
+// EXECUTAR COMANDOS
+// ==========================================
+
+function executarComando(comando) {
+
+    comando = normalizar(comando);
+
+    clearTimeout(temporizadorComando);
+
+    aguardandoComando = false;
+
+    // HORÁRIO
+    if (
+        comando.includes("que horas") ||
+        comando.includes("horario")
+    ) {
+
+        const agora = new Date();
+
+        const hora = agora.toLocaleTimeString(
+            "pt-BR",
+            {
+                hour: "2-digit",
+                minute: "2-digit"
+            }
+        );
+
+        falar("Agora são " + hora);
+
+        return;
+    }
+
+    // DATA
+    if (
+        comando.includes("que dia") ||
+        comando.includes("data de hoje")
+    ) {
+
+        const hoje = new Date();
+
+        const data = hoje.toLocaleDateString(
+            "pt-BR",
+            {
+                day: "numeric",
+                month: "long",
+                year: "numeric"
+            }
+        );
+
+        falar("Hoje é " + data);
+
+        return;
+    }
+
+    // LER TEXTO
+    if (
+        comando.includes("leia o texto") ||
+        comando.includes("ler o texto") ||
+        comando === "ler texto"
+    ) {
+
+        const texto = campoTexto.value.trim();
+
+        if (texto === "") {
+
+            falar("Não existe texto para ler.");
+
+        } else {
+
+            falar(texto);
+
+        }
+
+        return;
+    }
+
+    // PARAR LEITURA
+    if (
+        comando.includes("pare a leitura") ||
+        comando.includes("parar leitura") ||
+        comando.includes("pare de ler")
+    ) {
+
+        speechSynthesis.cancel();
+
+        falar("Leitura interrompida.");
+
+        return;
+    }
+
+    // LIMPAR TEXTO
+    if (
+        comando.includes("limpar texto") ||
+        comando.includes("apagar texto")
+    ) {
+
+        campoTexto.value = "";
+
+        falar("Texto apagado.");
+
+        return;
+    }
+
+    // AJUDA
+    if (
+        comando.includes("ajuda") ||
+        comando.includes("quais comandos")
+    ) {
+
+        falar(
+            "Você pode pedir as horas, a data, "
+            + "ler o texto, limpar o texto ou me mandar dormir."
+        );
+
+        return;
+    }
+
+    // DORMIR
+    if (
+        comando.includes("dormir") ||
+        comando.includes("desligar")
+    ) {
+
+        falar("Tudo bem. Até logo!");
+
+        // Encerra após terminar a resposta
+        const fala = falaAtual;
+
+        if (fala) {
+
+            fala.addEventListener("end", function() {
+                encerrarSophia();
+            }, { once: true });
+
+        } else {
+
+            encerrarSophia();
+
+        }
+
+        return;
+    }
+
+    // COMANDO DESCONHECIDO
+    falar("Desculpe, não entendi o comando. Diga ajuda para conhecer minhas funções.");
+
+}
+
+
+// ==========================================
+// SUSPENDER
+// ==========================================
+
+function suspenderSophia() {
+
+    sophiaAtiva = false;
+
+    aguardandoComando = false;
+
+    clearTimeout(temporizadorComando);
+    clearTimeout(temporizadorReinicio);
+
+    if (reconhecimento) {
+        reconhecimento.stop();
+    }
+
+    speechSynthesis.cancel();
+
+    falando = false;
+    falaAtual = null;
+
+    logo.classList.remove("ativa", "falando");
+
+    atualizarStatus(
+        "⏸ Sophia suspensa",
+        "Clique em iniciar para voltar a utilizar."
+    );
+
+}
+
+
+// ==========================================
+// ENCERRAR
+// ==========================================
+
+function encerrarSophia() {
+
+    suspenderSophia();
+
+    reconhecimento = null;
+
+    atualizarStatus(
+        "Sophia desligada",
+        "Assistente encerrada."
+    );
+
+}
+
+
+// ==========================================
+// VELOCIDADE
+// ==========================================
+
+function atualizarVelocidade() {
+
+    document.getElementById("valorVelocidade").innerText =
+        velocidade.value;
+
+}
+
+</script>
+
+</body>
+</html>
